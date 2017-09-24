@@ -83,7 +83,7 @@ void onSTADisconnected(WiFiEventStationModeDisconnected event_info)
   Serial.printf("Disconnected from SSID: %s\n", event_info.ssid.c_str());
   Serial.printf("Reason: %d\n", event_info.reason);
   digitalWrite(ONBOARDLED, HIGH); // Turn off LED
-  //NTP.stop(); // NTP sync can be disabled to avoid sync errors
+  NTP.stop(); // NTP sync can be disabled to avoid sync errors
 }
 
 void processSyncEvent(NTPSyncEvent_t ntpEvent) 
