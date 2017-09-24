@@ -21,8 +21,8 @@
 
 #define WLAN_SSID            "LivingRoom"
 #define WLAN_PASS            "Motorazr2V8"
-#define CST_OFFSET        -5
-#define DST_OFFSET        (CST_OFFSET - 1)
+#define CST_OFFSET        -6
+#define DST_OFFSET        (CST_OFFSET + 1)
 #define TIME_BASE_YEAR    2017
 #define ONBOARDLED 2 // Built in LED on ESP-12/ESP-07
 
@@ -46,35 +46,12 @@ bool g_timeSet;
 boolean syncEventTriggered = false; // True if a time even has been triggered
 NTPSyncEvent_t ntpEvent; // Last triggered event
 
-bool isDst()
-{
-  bool offset = true;
-  
-  if (month() > 3 && month() < 11) {
-    return false;
-  }
-  else if (month() == 3) {
-    if ((day() == _usDSTStart[year() -  TIME_BASE_YEAR]) && hour() >= 2)
-      offset = false;
-    else if (day() > _usDSTStart[year() -  TIME_BASE_YEAR])
-      offset = false;
-  }
-  else if (month() == 11) {
-    if ((day() == _usDSTEnd[year() -  TIME_BASE_YEAR]) && hour() <=2)
-      offset = false;
-    else if (day() > _usDSTEnd[year() -  TIME_BASE_YEAR])
-      offset = true;
-  }
-  return offset;
-}
-
 // Start NTP only after IP network is connected
 void onSTAGotIP(WiFiEventStationModeGotIP ipInfo) 
 {
   Serial.printf("Got IP: %s\r\n", ipInfo.ip.toString().c_str());
-  NTP.begin("pool.ntp.org", CST_OFFSET, isDst());
+  NTP.begin("pool.ntp.org", currentTimeZone(), false);
   NTP.setInterval(60*60);
-  digitalWrite(ONBOARDLED, LOW); // Turn on LED
 }
 
 // Manage network disconnection
@@ -82,7 +59,6 @@ void onSTADisconnected(WiFiEventStationModeDisconnected event_info)
 {
   Serial.printf("Disconnected from SSID: %s\n", event_info.ssid.c_str());
   Serial.printf("Reason: %d\n", event_info.reason);
-  digitalWrite(ONBOARDLED, HIGH); // Turn off LED
   NTP.stop(); // NTP sync can be disabled to avoid sync errors
 }
 
@@ -99,6 +75,7 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent)
     Serial.print("Got NTP time: ");
     Serial.println(NTP.getTimeDateString(NTP.getLastNTPSync()));
   }
+  NTP.setTimeZone(currentTimeZone());
 }
 
 int currentTimeZone()
@@ -372,6 +349,6 @@ void loop()
   }
 
   writeTime();
-  delay(100);
+  delay(0);
 }
 
