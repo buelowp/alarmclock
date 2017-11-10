@@ -3,8 +3,10 @@
 #define WLAN_SSID            "LivingRoom"
 #define WLAN_PASS            "Motorazr2V8"
 #define CST_OFFSET        -6
-#define DST_OFFSET        (CST_OFFSET + 1)
 #define TIME_BASE_YEAR    2017
+
+bool timeSynced;
+int g_online;
 
 const uint8_t _usDSTStart[20] = {12,11,10, 8,14,13,12,10,9,8,14,12,11,10,9,14,13,12,11, 9};
 const uint8_t _usDSTEnd[20] = {5,4,3,1,7,6,5,3,2,1,7,5,4,3,2,7,6,5,4,2};
@@ -16,19 +18,19 @@ int currentTimeZone()
   int offset = CST_OFFSET;
 
     if (Time.month() > 3 && Time.month() < 11) {
-        offset = DST_OFFSET;
+        Time.beginDST();
     }
     else if (Time.month() == 3) {
         if ((Time.day() == _usDSTStart[Time.year() -  TIME_BASE_YEAR]) && Time.hour() >= 2)
-            offset = DST_OFFSET;
+            Time.beginDST();
         else if (Time.day() > _usDSTStart[Time.year() -  TIME_BASE_YEAR])
-            offset = DST_OFFSET;
+          Time.beginDST();
     }
     else if (Time.month() == 11) {
         if ((Time.day() == _usDSTEnd[Time.year() -  TIME_BASE_YEAR]) && Time.hour() <=2)
-            offset = DST_OFFSET;
+          Time.beginDST();
         else if (Time.day() > _usDSTEnd[Time.year() -  TIME_BASE_YEAR])
-            offset = CST_OFFSET;
+          Time.endDST();
     }
 
     String debug(String(__FUNCTION__) + ": Current timezone is " + offset);
@@ -53,12 +55,15 @@ void writeTime()
   if (Time.hour() > 12) {
     displayValue -= 1200;
   }
+  matrix1.print(displayValue, DEC);
+  matrix1.drawColon(true);
+  matrix1.writeDisplay();
 }
 
 void lostConnection()
 {
   static int count = 0;
-  
+
   Serial.print(count++);
   Serial.print(": ");
   Serial.print(Time.hour());
@@ -76,14 +81,28 @@ void setup()
 {
   Serial.begin(115200);
   matrix1.begin(0x70);
-  matrix1.setBrightness(15);
+  matrix1.setBrightness(10);
   clearDisplay();
 
+  Particle.syncTime();
+  Time.zone(CST_OFFSET);
+  currentTimeZone();
+  lostConnection();
+  timeSynced = true;
   Serial.println("Done with setup");
+  g_online = 77;
+  Particle.variable("online", g_online);
 }
 
 void loop()
 {
+  if (((Time.hour() % 6) == 0) && (!timeSynced)) {
+    Particle.syncTime();
+    currentTimeZone();
+    timeSynced = true;
+  }
+  else
+    timeSynced = false;
+
   writeTime();
-  delay(0);
 }
