@@ -5,8 +5,8 @@
 #define CST_OFFSET        -6
 #define TIME_BASE_YEAR    2017
 
-bool timeSynced;
-int g_online;
+bool g_timeSync;
+bool g_timeZoneCheck;
 
 const uint8_t _usDSTStart[20] = {12,11,10, 8,14,13,12,10,9,8,14,12,11,10,9,14,13,12,11, 9};
 const uint8_t _usDSTEnd[20] = {5,4,3,1,7,6,5,3,2,1,7,5,4,3,2,7,6,5,4,2};
@@ -88,21 +88,31 @@ void setup()
   Time.zone(CST_OFFSET);
   currentTimeZone();
   lostConnection();
-  timeSynced = true;
+  g_timeSync = true;
+  g_timeZoneCheck = false;
   Serial.println("Done with setup");
-  g_online = 77;
-  Particle.variable("online", g_online);
 }
 
 void loop()
 {
-  if (((Time.hour() % 6) == 0) && (!timeSynced)) {
+  /* Call network time 4 times a day */
+  if (((Time.hour() % 6) == 0) && (!g_timeSync)) {
     Particle.syncTime();
-    currentTimeZone();
-    timeSynced = true;
+    g_timeSync = true;
+    Serial.println("Asked the network for time");
   }
   else
-    timeSynced = false;
+    g_timeSync = false;
+
+    /* Need to update the timezone every hour for the 2 times it matters a year */
+  if ((Time.minute() == 1) && g_timeZoneCheck) {
+    currentTimeZone();
+    Serial.println("Updated the timezone");
+    g_timeZoneCheck = false;
+  }
+  else {
+    g_timeZoneCheck = true;
+  }
 
   writeTime();
 }
