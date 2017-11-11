@@ -7,6 +7,7 @@
 
 bool g_timeSync;
 bool g_timeZoneCheck;
+int g_brightness;
 
 const uint8_t _usDSTStart[20] = {12,11,10, 8,14,13,12,10,9,8,14,12,11,10,9,14,13,12,11, 9};
 const uint8_t _usDSTEnd[20] = {5,4,3,1,7,6,5,3,2,1,7,5,4,3,2,7,6,5,4,2};
@@ -77,9 +78,19 @@ void lostConnection()
   Serial.println(Time.year());
 }
 
+int updateBrightness(String b)
+{
+    int bright = b.toInt();
+
+    if (bright < 15 && bright >= 0)
+        g_brightness = bright;
+}
+
 void setup()
 {
   Serial.begin(115200);
+  Particle.function("updateBrightness", updateBrightness);
+  Particle.variable("brightness", g_brightness);
   matrix1.begin(0x70);
   matrix1.setBrightness(10);
   clearDisplay();
@@ -90,6 +101,7 @@ void setup()
   lostConnection();
   g_timeSync = true;
   g_timeZoneCheck = false;
+  g_brightness = 10;
   Serial.println("Done with setup");
 }
 
@@ -114,5 +126,6 @@ void loop()
     g_timeZoneCheck = true;
   }
 
+matrix1.setBrightness(g_brightness);
   writeTime();
 }
