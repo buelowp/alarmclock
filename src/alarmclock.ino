@@ -5,6 +5,8 @@
 #define CST_OFFSET        -6
 #define TIME_BASE_YEAR    2017
 
+int clockUpdateBrightness(String);
+
 bool g_timeSync;
 bool g_timeZoneCheck;
 int g_brightness;
@@ -56,6 +58,10 @@ void writeTime()
   if (Time.hour() > 12) {
     displayValue -= 1200;
   }
+  if (Time.hour() == 0) {
+      displayValue += 1200;
+  }
+  
   matrix1.print(displayValue, DEC);
   matrix1.drawColon(true);
   matrix1.writeDisplay();
@@ -78,22 +84,28 @@ void lostConnection()
   Serial.println(Time.year());
 }
 
-int updateBrightness(String b)
+int clockUpdateBrightness(String b)
 {
-    int bright = b.toInt();
+    int bright;
 
-    if (bright < 15 && bright >= 0)
+    bright = b.toInt();
+
+    if (bright <= 15 && bright >= 0)
         g_brightness = bright;
+
+    return g_brightness;
 }
 
 void setup()
 {
   Serial.begin(115200);
-  Particle.function("updateBrightness", updateBrightness);
+  Particle.function("setBright", clockUpdateBrightness);
   Particle.variable("brightness", g_brightness);
   matrix1.begin(0x70);
-  matrix1.setBrightness(10);
+  matrix1.setBrightness(5);
   clearDisplay();
+
+  clockUpdateBrightness(String("10"));
 
   Particle.syncTime();
   Time.zone(CST_OFFSET);
@@ -101,7 +113,7 @@ void setup()
   lostConnection();
   g_timeSync = true;
   g_timeZoneCheck = false;
-  g_brightness = 10;
+  g_brightness = 5;
   Serial.println("Done with setup");
 }
 
@@ -126,6 +138,6 @@ void loop()
     g_timeZoneCheck = true;
   }
 
-matrix1.setBrightness(g_brightness);
+  matrix1.setBrightness(g_brightness);
   writeTime();
 }
