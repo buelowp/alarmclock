@@ -4,6 +4,9 @@
 #define WLAN_PASS            "Motorazr2V8"
 #define CST_OFFSET        -6
 #define TIME_BASE_YEAR    2017
+#define APP_VERSION			1
+
+//PRODUCT_VERSION(APP_VERSION);
 
 int clockUpdateBrightness(String);
 
@@ -35,9 +38,6 @@ int currentTimeZone()
         else if (Time.day() > _usDSTEnd[Time.year() -  TIME_BASE_YEAR])
           Time.endDST();
     }
-
-    String debug(String(__FUNCTION__) + ": Current timezone is " + offset);
-    Serial.println(debug);
     return offset;
 }
 
@@ -61,7 +61,7 @@ void writeTime()
   if (Time.hour() == 0) {
       displayValue += 1200;
   }
-  
+
   matrix1.print(displayValue, DEC);
   matrix1.drawColon(true);
   matrix1.writeDisplay();
