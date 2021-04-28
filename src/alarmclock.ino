@@ -1,56 +1,47 @@
 #include "adafruit-led-backpack.h"
-#include <photon-wdgs.h>
-#include <SparkIntervalTimer.h>
 
-#define WLAN_SSID           "LivingRoom"
-#define WLAN_PASS           "Motorazr2V8"
 #define CST_OFFSET          -6
-#define TIME_BASE_YEAR      2017
-#define APP_VERSION			4
+#define DST_OFFSET          (CST_OFFSET + 1)
+#define TIME_BASE_YEAR		2021
+#define APP_VERSION			8
 
 #define ONE_MINUTE          (1000 * 60)
 
 STARTUP(WiFi.selectAntenna(ANT_INTERNAL));
-//PRODUCT_VERSION(APP_VERSION);
 
-int clockUpdateBrightness(String);
+const uint8_t _usDSTStart[22] = { 14,13,12,10, 9, 8,14,12,11,10, 9,14,13,12,11, 9};
+const uint8_t _usDSTEnd[22]   = { 7, 6, 5, 3, 2, 1, 7, 5, 4, 3, 2, 7, 6, 5, 4, 2};
 
 bool g_timeSync;
-bool g_timeZoneCheck;
+int g_timeZone;
 int g_brightness;
 int g_appId;
 
-const uint8_t _usDSTStart[20] = {12,11,10, 8,14,13,12,10,9,8,14,12,11,10,9,14,13,12,11, 9};
-const uint8_t _usDSTEnd[20] = {5,4,3,1,7,6,5,3,2,1,7,5,4,3,2,7,6,5,4,2};
-
 Adafruit_7segment matrix1 = Adafruit_7segment();
+SerialLogHandler logHandler;
 
-void currentTimeZone()
+int currentTimeZone()
 {
+    g_timeZone = DST_OFFSET;
     if (Time.month() > 3 && Time.month() < 11) {
-        Time.beginDST();
+        return DST_OFFSET;
     }
-    else if (Time.month() == 3) {
-        if (Time.day() < (_usDSTStart[Time.year() - TIME_BASE_YEAR]))
-            Time.endDST();
-        else if ((Time.day() == _usDSTStart[Time.year() -  TIME_BASE_YEAR]) && Time.hour() < 2)
-            Time.endDST();
-        else if ((Time.day() == _usDSTStart[Time.year() -  TIME_BASE_YEAR]) && Time.hour() >= 2)
-            Time.beginDST();
-        else
-            Time.beginDST();
+    if (Time.month() == 3) {
+        if ((Time.day() == _usDSTStart[Time.year() - TIME_BASE_YEAR]) && Time.hour() >= 2)
+            return DST_OFFSET;
+        if (Time.day() > _usDSTStart[Time.year() - TIME_BASE_YEAR])
+            return DST_OFFSET;
     }
-    else if (Time.month() == 11) {
-        if (Time.day() < (_usDSTEnd[Time.year() - TIME_BASE_YEAR]))
-            Time.beginDST();
-        else if ((Time.day() == _usDSTEnd[Time.year() -  TIME_BASE_YEAR]) && Time.hour() <= 2)
-            Time.beginDST();
-        else if ((Time.day() == _usDSTEnd[Time.year() -  TIME_BASE_YEAR]) && Time.hour() > 2)
-            Time.endDST();
-        else
-            Time.endDST();
+    if (Time.month() == 11) {
+        if ((Time.day() == _usDSTEnd[Time.year() - TIME_BASE_YEAR]) && Time.hour() <=2)
+            return DST_OFFSET;
+        if (Time.day() < _usDSTEnd[Time.year() - TIME_BASE_YEAR])
+            return DST_OFFSET;
     }
+    g_timeZone = CST_OFFSET;
+    return CST_OFFSET;
 }
+
 
 void clearDisplay()
 {
@@ -78,85 +69,47 @@ void writeTime()
   matrix1.writeDisplay();
 }
 
-void lostConnection()
-{
-  static int count = 0;
-
-  Serial.print(count++);
-  Serial.print(": ");
-  Serial.print(Time.hour());
-  Serial.print(":");
-  Serial.print(Time.minute());
-  Serial.print(", ");
-  Serial.print(Time.month());
-  Serial.print("-");
-  Serial.print(Time.day());
-  Serial.print("-");
-  Serial.println(Time.year());
-}
-
 int clockUpdateBrightness(String b)
 {
     int bright;
 
     bright = b.toInt();
 
-    if (bright <= 15 && bright >= 0)
+    if (bright <= 255 && bright >= 0)
         g_brightness = bright;
 
+    matrix1.setBrightness(g_brightness);
     return g_brightness;
 }
 
 void setup()
 {
-    Serial.begin(115200);
     g_appId = APP_VERSION;
 
     Particle.function("setBright", clockUpdateBrightness);
     Particle.variable("brightness", g_brightness);
+    Particle.variable("timezone", g_timeZone);
     Particle.variable("version", g_appId);
     matrix1.begin(0x70);
-    matrix1.setBrightness(5);
     clearDisplay();
 
-    Particle.syncTime();
-    Time.zone(CST_OFFSET);
-    currentTimeZone();
-    lostConnection();
-    g_timeSync = true;
-    g_timeZoneCheck = false;
+    Time.zone(currentTimeZone());
     g_brightness = 5;
 
-    PhotonWdgs::begin(true, true, ONE_MINUTE, TIMER7);
-
-    Serial.println("Done with setup");
+    matrix1.setBrightness(g_brightness);
+    Log.info("Done with setup");
 }
 
 void loop()
 {
-    if (WiFi.ready()) {
-        PhotonWdgs::tickle();
-    }
+    static int lastHour = 25;
 
-    /* Call network time 4 times a day */
-    if (((Time.hour() % 6) == 0) && (!g_timeSync)) {
+    if (Time.hour() != lastHour) {
         Particle.syncTime();
-        g_timeSync = true;
-        Serial.println("Asked the network for time");
-    }
-    else
-        g_timeSync = false;
-
-    /* Need to update the timezone every hour for the 2 times it matters a year */
-    if ((Time.minute() == 1) && g_timeZoneCheck) {
-        currentTimeZone();
-        Serial.println("Updated the timezone");
-        g_timeZoneCheck = false;
-    }
-    else {
-        g_timeZoneCheck = true;
+        waitUntil(Particle.syncTimeDone);
+        Time.zone(currentTimeZone());
+        lastHour = Time.hour();
     }
 
-    matrix1.setBrightness(g_brightness);
     writeTime();
 }
