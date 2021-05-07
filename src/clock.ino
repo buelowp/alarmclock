@@ -2,7 +2,7 @@
 #include "Adafruit_LEDBackpack_RK.h"
 #include "MQTT.h"
 
-#define APP_ID              9
+#define APP_ID              13
 #define CST_OFFSET          -6
 #define DST_OFFSET          (CST_OFFSET + 1)
 #define TIME_BASE_YEAR		2021
@@ -25,12 +25,12 @@ int g_timeZone;
 int g_weather;
 int g_brightness;
 int g_ledBright;
+int g_appid;
 String g_conditions;
+String g_version;
 
 SunSet sun;
 Adafruit_7segment mainclock = Adafruit_7segment();
-Adafruit_8x16matrix left = Adafruit_8x16matrix();
-Adafruit_8x16matrix right = Adafruit_8x16matrix();
 Adafruit_AlphaNum4 temperature = Adafruit_AlphaNum4();
 Adafruit_AlphaNum4 humidity = Adafruit_AlphaNum4();
 
@@ -149,91 +149,10 @@ void clearDisplays()
 
 }
 
-#if 0
-void raindrops()
-{
-    static int leftx = random(1, 7);
-    static int lefty = 2;
-    static int rightx = random(1, 7);
-    static int righty = 2;
-    static system_tick_t last = millis() - 100;
-
-    if (millis() >= last + 100) {
-        left.clear();
-        right.clear();
-        left.drawLine(0, 0, 7, 0, LED_ON);
-        left.drawLine(1, 1, 7, 1, LED_ON);
-        left.drawLine(2, 2, 6, 2, LED_ON);
-        right.drawLine(0, 0, 7, 0, LED_ON);
-        right.drawLine(1, 1, 7, 1, LED_ON);
-        right.drawLine(2, 2, 6, 2, LED_ON);
-
-        left.drawCircle(leftx, lefty, 1, LED_ON);
-        right.drawCircle(rightx, righty, 1, LED_ON);
-        if (++lefty >= 15) {
-            lefty = 1;
-            while (1) {
-                int x = random(1, 7);
-                if (x != leftx) {
-                    leftx = x;
-                    break;
-                }
-            }
-        }
-        if (++righty >= 15) {
-            righty = 1;
-            while (1) {
-                int x = random(1, 7);
-                if (x != rightx) {
-                    rightx = x;
-                    break;
-                }
-            }
-        }
-        left.writeDisplay();
-        right.writeDisplay();
-        last = millis();
-    }
-}
-
-void sunImage(int yoffset)
-{
-    left.fillCircle(7, 7 + yoffset, 5, LED_ON);
-    right.fillCircle(0, 7 + yoffset, 5, LED_ON);
-    left.drawLine(1, 1 + yoffset, 2, 2 + yoffset, LED_ON);
-    right.drawLine(5, 2 + yoffset, 6, 1 + yoffset, LED_ON);
-    left.drawPixel(0, 7 + yoffset, LED_ON);
-    left.drawPixel(7, 0 + yoffset, LED_ON);
-    right.drawPixel(0, 0 + yoffset, LED_ON);
-    right.drawPixel(7, 7 + yoffset, LED_ON);
-    left.drawPixel(7, 14 + yoffset, LED_ON);
-    right.drawPixel(0, 14 + yoffset, LED_ON);
-    left.drawLine(1, 13 + yoffset, 2, 12 + yoffset, LED_ON);
-    right.drawLine(5, 12 + yoffset, 6, 13 + yoffset, LED_ON);
-    left.writeDisplay();
-    right.writeDisplay();
-}
-
-void cloudImage()
-{
-    int xoffset = 3;
-    int yoffset = 3;
-    left.clear();
-    right.clear();
-    left.fillCircle(0 + xoffset, 0 + yoffset, 3, LED_ON);
-    left.fillCircle(5 + xoffset, 3 + xoffset, 3, LED_ON);
-    right.fillCircle(3 + xoffset, 1 + yoffset, 3, LED_ON);
-    right.fillCircle(0, 6, 3, LED_ON);
-    left.writeDisplay();
-    right.writeDisplay();
-}
-
-#endif
-
 void setBrightness(int bright)
 {
     int clock = bright;
-    int temp = bright - 9;
+    int temp = bright - 6;
 
     mainclock.setBrightness(clock);
     mainclock.writeDisplay();
@@ -254,47 +173,22 @@ void setDateTime()
     Time.zone(tzoffset);
 }
 
-// {"coord":{"lon":-87.9806,"lat":42.0884},"weather":[{"id":804,"main":"Clouds","description":"overcast clouds","icon":"04d"}],"base":"stations","main":{"temp":54.9,"feels_like":41.23,"temp_min":53.01,"temp_max":57,"pressure":1004,"humidity":67},"visibility":10000,"wind":{"speed":21.85,"deg":200,"gust":32.21},"clouds":{"all":90},"dt":1616600803,"sys":{"type":1,"id":5453,"country":"US","sunrise":1616586467,"sunset":1616630896},"timezone":-18000,"id":4883555,"name":"Arlington Heights","cod":200}
-void weatherData(const char *event, const char *data) 
-{
-    JSONValue outerObj = JSONValue::parseCopy(data);
-    JSONObjectIterator iter(outerObj);
-    while (iter.next()) {
-        if (iter.value().isArray() && iter.name() == "weather") {
-            JSONArrayIterator array(iter.value());
-            for (int i = 0; i < array.next(); i++) {
-                if (array.value().isObject()) {
-                    JSONObjectIterator conditions(array.value());
-                    while (conditions.next()) {
-                        if (conditions.name() == "main") {
-                            g_conditions = conditions.value().toString().data();
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Log.printf("Conditions: %s\n", g_conditions.c_str());
-/*
-    if (g_conditions == "Clouds") {
-        cloudImage();
-    }
-*/
-}
-
 void setup()
 {
+    g_appid = APP_ID;
+    g_version = System.version() + "." + g_appid;
+
     connect_mqtt();
     mainclock.begin(0x70);
     temperature.begin(0x71);
     humidity.begin(0x72);
-//    left.begin(0x73);
-//    right.begin(0x74);
+    clearDisplays();
 
-//    Particle.subscribe("hook-response/weather", weatherData);
     Particle.variable("brightness", g_brightness);
     Particle.variable("display", g_ledBright);
-    clearDisplays();
+    Particle.variable("version", g_version);
+    Particle.variable("timezone", g_timeZone);
+
     sun.setPosition(LATITUDE, LONGITUDE, currentTimeZone());
 }
 
@@ -303,15 +197,14 @@ void loop()
     static int lasthour = 24;
     static int lastSecond = 60;
 
-    g_brightness = analogRead(A0);
-    g_ledBright = map(g_brightness, 0, 4098, 10, 15);
+    g_brightness = analogRead(A5);
+    g_ledBright = map(g_brightness, 0, 4095, 7, 13);
 
     setBrightness(g_ledBright);
 
     if (Time.hour() != lasthour) {
         setDateTime();
         lasthour = Time.hour();
-//        Particle.publish("weather", String(), PRIVATE);
     }
 
     if (lastSecond != Time.second()) {
